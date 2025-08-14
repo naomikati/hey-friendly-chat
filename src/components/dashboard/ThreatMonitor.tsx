@@ -1,70 +1,38 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertTriangle, Shield, Clock } from "lucide-react";
-
-interface ThreatLog {
-  id: string;
-  type: "spoofing" | "phishing" | "anomaly";
-  severity: "low" | "medium" | "high";
-  source: string;
-  timestamp: Date;
-  status: "detected" | "blocked" | "investigating";
-}
+import { useThreats } from "@/hooks/useThreats";
 
 interface ThreatMonitorProps {
   onAttackDetected: () => void;
 }
 
 export const ThreatMonitor = ({ onAttackDetected }: ThreatMonitorProps) => {
-  const [threats, setThreats] = useState<ThreatLog[]>([
-    {
-      id: "1",
-      type: "spoofing",
-      severity: "high",
-      source: "IP: 192.168.1.45",
-      timestamp: new Date(Date.now() - 5 * 60000),
-      status: "blocked"
-    },
-    {
-      id: "2",
-      type: "phishing",
-      severity: "medium",
-      source: "Email: fake@equity.com",
-      timestamp: new Date(Date.now() - 15 * 60000),
-      status: "detected"
-    },
-    {
-      id: "3",
-      type: "anomaly",
-      severity: "low",
-      source: "User: john.doe@equity.co.ke",
-      timestamp: new Date(Date.now() - 30 * 60000),
-      status: "investigating"
-    }
-  ]);
+  const { threats, loading, addThreat } = useThreats();
 
   useEffect(() => {
     const interval = setInterval(() => {
       // Simulate random threat detection
       if (Math.random() > 0.8) {
-        const newThreat: ThreatLog = {
-          id: Date.now().toString(),
-          type: ["spoofing", "phishing", "anomaly"][Math.floor(Math.random() * 3)] as any,
-          severity: ["low", "medium", "high"][Math.floor(Math.random() * 3)] as any,
+        const threatTypes = ["spoofing", "phishing", "anomaly"] as const;
+        const severityLevels = ["low", "medium", "high"] as const;
+        
+        const newThreat = {
+          type: threatTypes[Math.floor(Math.random() * 3)],
+          severity: severityLevels[Math.floor(Math.random() * 3)],
           source: `IP: 192.168.1.${Math.floor(Math.random() * 255)}`,
-          timestamp: new Date(),
-          status: "detected"
+          status: "detected" as const
         };
         
-        setThreats(prev => [newThreat, ...prev.slice(0, 9)]);
+        addThreat(newThreat);
         onAttackDetected();
       }
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [onAttackDetected]);
+  }, [onAttackDetected, addThreat]);
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -92,28 +60,39 @@ export const ThreatMonitor = ({ onAttackDetected }: ThreatMonitorProps) => {
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[400px]">
-          <div className="space-y-3">
-            {threats.map((threat) => (
-              <div key={threat.id} className="flex items-start justify-between p-3 border rounded-lg">
-                <div className="space-y-1 flex-1">
-                  <div className="flex items-center gap-2">
-                    <Badge variant={getSeverityColor(threat.severity)}>
-                      {threat.type.toUpperCase()}
-                    </Badge>
-                    <Badge variant={getStatusColor(threat.status)}>
-                      {threat.status}
-                    </Badge>
+          {loading ? (
+            <div className="flex items-center justify-center h-full">
+              <p className="text-muted-foreground">Loading threats...</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {threats.map((threat) => (
+                <div key={threat.id} className="flex items-start justify-between p-3 border rounded-lg">
+                  <div className="space-y-1 flex-1">
+                    <div className="flex items-center gap-2">
+                      <Badge variant={getSeverityColor(threat.severity)}>
+                        {threat.type.toUpperCase()}
+                      </Badge>
+                      <Badge variant={getStatusColor(threat.status)}>
+                        {threat.status}
+                      </Badge>
+                    </div>
+                    <p className="text-sm font-medium">{threat.source}</p>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      {new Date(threat.created_at).toLocaleTimeString()}
+                    </div>
                   </div>
-                  <p className="text-sm font-medium">{threat.source}</p>
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Clock className="h-3 w-3" />
-                    {threat.timestamp.toLocaleTimeString()}
-                  </div>
+                  <Shield className="h-4 w-4 text-primary" />
                 </div>
-                <Shield className="h-4 w-4 text-primary" />
-              </div>
-            ))}
-          </div>
+              ))}
+              {threats.length === 0 && (
+                <div className="text-center text-muted-foreground py-8">
+                  No threats detected yet
+                </div>
+              )}
+            </div>
+          )}
         </ScrollArea>
       </CardContent>
     </Card>

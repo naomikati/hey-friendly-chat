@@ -4,43 +4,33 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Fingerprint, Eye, Mic, CheckCircle, XCircle } from "lucide-react";
+import { useBiometricScans } from "@/hooks/useBiometricScans";
 
 export const BiometricPanel = () => {
-  const [scanningFingerprint, setScanningFingerprint] = useState(false);
-  const [scanningFace, setScanningFace] = useState(false);
-  const [scanningVoice, setScanningVoice] = useState(false);
+  const { scanningStates, startScan } = useBiometricScans();
   const [fingerprintMatch, setFingerprintMatch] = useState<boolean | null>(null);
   const [faceMatch, setFaceMatch] = useState<boolean | null>(null);
   const [voiceMatch, setVoiceMatch] = useState<boolean | null>(null);
 
-  const simulateFingerprint = () => {
-    setScanningFingerprint(true);
+  const simulateFingerprint = async () => {
     setFingerprintMatch(null);
-    
-    setTimeout(() => {
-      setScanningFingerprint(false);
-      setFingerprintMatch(Math.random() > 0.2); // 80% success rate
-    }, 3000);
+    startScan("fingerprint", 3000, 0.8).then((success) => {
+      setFingerprintMatch(success);
+    });
   };
 
-  const simulateFaceRecognition = () => {
-    setScanningFace(true);
+  const simulateFaceRecognition = async () => {
     setFaceMatch(null);
-    
-    setTimeout(() => {
-      setScanningFace(false);
-      setFaceMatch(Math.random() > 0.15); // 85% success rate
-    }, 2500);
+    startScan("face", 2500, 0.85).then((success) => {
+      setFaceMatch(success);
+    });
   };
 
-  const simulateVoiceRecognition = () => {
-    setScanningVoice(true);
+  const simulateVoiceRecognition = async () => {
     setVoiceMatch(null);
-    
-    setTimeout(() => {
-      setScanningVoice(false);
-      setVoiceMatch(Math.random() > 0.25); // 75% success rate
-    }, 4000);
+    startScan("voice", 4000, 0.75).then((success) => {
+      setVoiceMatch(success);
+    });
   };
 
   const getMatchIcon = (match: boolean | null) => {
@@ -76,7 +66,7 @@ export const BiometricPanel = () => {
             {getMatchBadge(fingerprintMatch)}
           </div>
           
-          {scanningFingerprint && (
+          {scanningStates.fingerprint && (
             <div className="space-y-2">
               <Progress value={66} className="w-full" />
               <p className="text-sm text-muted-foreground">Scanning fingerprint...</p>
@@ -85,11 +75,11 @@ export const BiometricPanel = () => {
           
           <Button 
             onClick={simulateFingerprint} 
-            disabled={scanningFingerprint}
+            disabled={scanningStates.fingerprint}
             variant="outline"
             className="w-full"
           >
-            {scanningFingerprint ? "Scanning..." : "Start Fingerprint Scan"}
+            {scanningStates.fingerprint ? "Scanning..." : "Start Fingerprint Scan"}
           </Button>
         </div>
 
@@ -104,7 +94,7 @@ export const BiometricPanel = () => {
             {getMatchBadge(faceMatch)}
           </div>
           
-          {scanningFace && (
+          {scanningStates.face && (
             <div className="space-y-2">
               <Progress value={75} className="w-full" />
               <p className="text-sm text-muted-foreground">Analyzing facial features...</p>
@@ -113,11 +103,11 @@ export const BiometricPanel = () => {
           
           <Button 
             onClick={simulateFaceRecognition} 
-            disabled={scanningFace}
+            disabled={scanningStates.face}
             variant="outline"
             className="w-full"
           >
-            {scanningFace ? "Analyzing..." : "Start Face Recognition"}
+            {scanningStates.face ? "Analyzing..." : "Start Face Recognition"}
           </Button>
         </div>
 
@@ -132,7 +122,7 @@ export const BiometricPanel = () => {
             {getMatchBadge(voiceMatch)}
           </div>
           
-          {scanningVoice && (
+          {scanningStates.voice && (
             <div className="space-y-2">
               <Progress value={50} className="w-full" />
               <p className="text-sm text-muted-foreground">Processing voice pattern...</p>
@@ -141,11 +131,11 @@ export const BiometricPanel = () => {
           
           <Button 
             onClick={simulateVoiceRecognition} 
-            disabled={scanningVoice}
+            disabled={scanningStates.voice}
             variant="outline"
             className="w-full"
           >
-            {scanningVoice ? "Processing..." : "Start Voice Recognition"}
+            {scanningStates.voice ? "Processing..." : "Start Voice Recognition"}
           </Button>
         </div>
 

@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      attack_simulations: {
+        Row: {
+          attack_label: string
+          attack_type: string
+          blocked: boolean
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          attack_label: string
+          attack_type: string
+          blocked?: boolean
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          attack_label?: string
+          attack_type?: string
+          blocked?: boolean
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      biometric_scans: {
+        Row: {
+          created_at: string
+          id: string
+          scan_type: string
+          success: boolean
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          scan_type: string
+          success?: boolean
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          scan_type?: string
+          success?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -44,6 +95,39 @@ export type Database = {
           updated_at?: string
           user_id?: string
           username?: string | null
+        }
+        Relationships: []
+      }
+      threats: {
+        Row: {
+          created_at: string
+          id: string
+          severity: string
+          source: string
+          status: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          severity: string
+          source: string
+          status: string
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          severity?: string
+          source?: string
+          status?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

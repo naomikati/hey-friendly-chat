@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Shield, Play, StopCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAttackSimulator } from "@/hooks/useAttackSimulator";
 
 interface AttackSimulatorProps {
   onAttackSimulated: () => void;
@@ -12,8 +13,7 @@ interface AttackSimulatorProps {
 
 export const AttackSimulator = ({ onAttackSimulated }: AttackSimulatorProps) => {
   const [selectedAttack, setSelectedAttack] = useState<string>("");
-  const [isSimulating, setIsSimulating] = useState(false);
-  const [lastResult, setLastResult] = useState<{ type: string; blocked: boolean; } | null>(null);
+  const { isSimulating, lastResult, simulateAttack } = useAttackSimulator();
   const { toast } = useToast();
 
   const attackTypes = [
@@ -24,31 +24,21 @@ export const AttackSimulator = ({ onAttackSimulated }: AttackSimulatorProps) => 
     { value: "session", label: "Session Hijacking", description: "Unauthorized session takeover" }
   ];
 
-  const simulateAttack = () => {
+  const handleSimulateAttack = () => {
     if (!selectedAttack) return;
-
-    setIsSimulating(true);
     
     const attackType = attackTypes.find(a => a.value === selectedAttack);
+    if (!attackType) return;
     
-    // Simulate detection time
-    setTimeout(() => {
-      const blocked = Math.random() > 0.1; // 90% block rate
-      
-      setLastResult({
-        type: attackType?.label || selectedAttack,
-        blocked
-      });
-      
-      setIsSimulating(false);
+    simulateAttack(selectedAttack, attackType.label, () => {
       onAttackSimulated();
       
       toast({
-        title: blocked ? "Attack Blocked!" : "Attack Detected!",
-        description: `${attackType?.label} was ${blocked ? 'successfully blocked' : 'detected but not blocked'}`,
-        variant: blocked ? "default" : "destructive"
+        title: lastResult?.blocked ? "Attack Blocked!" : "Attack Detected!",
+        description: `${attackType.label} was ${lastResult?.blocked ? 'successfully blocked' : 'detected but not blocked'}`,
+        variant: lastResult?.blocked ? "default" : "destructive"
       });
-    }, 2000);
+    });
   };
 
   return (
@@ -83,7 +73,7 @@ export const AttackSimulator = ({ onAttackSimulated }: AttackSimulatorProps) => 
           <div className="space-y-3">
             <label className="text-sm font-medium">Simulation Control:</label>
             <Button 
-              onClick={simulateAttack}
+              onClick={handleSimulateAttack}
               disabled={!selectedAttack || isSimulating}
               className="w-full"
               variant={isSimulating ? "secondary" : "default"}
