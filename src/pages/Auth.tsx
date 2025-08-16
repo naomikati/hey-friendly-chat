@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Shield, Lock, User, Mail } from "lucide-react";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { Shield, Lock, User, Mail, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -15,6 +16,9 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [signInForm, setSignInForm] = useState({ email: "", password: "" });
   const [signUpForm, setSignUpForm] = useState({ email: "", password: "", fullName: "" });
+  const [showOtpVerification, setShowOtpVerification] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [userEmail, setUserEmail] = useState("");
 
   useEffect(() => {
     // Check if user is already authenticated
@@ -66,13 +70,10 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      const redirectUrl = `${window.location.origin}/`;
-      
       const { error } = await supabase.auth.signUp({
         email: signUpForm.email,
         password: signUpForm.password,
         options: {
-          emailRedirectTo: redirectUrl,
           data: {
             full_name: signUpForm.fullName,
           },
@@ -86,9 +87,11 @@ const Auth = () => {
           variant: "destructive",
         });
       } else {
+        setUserEmail(signUpForm.email);
+        setShowOtpVerification(true);
         toast({
-          title: "Account Created!",
-          description: "Please check your email to verify your account.",
+          title: "Verification Code Sent!",
+          description: "Please check your email for the 6-digit verification code.",
         });
       }
     } catch (error) {
@@ -101,6 +104,145 @@ const Auth = () => {
       setLoading(false);
     }
   };
+
+  const handleOtpVerification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email: userEmail,
+        token: otpCode,
+        type: 'signup'
+      });
+
+      if (error) {
+        toast({
+          title: "Verification Failed",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Account Verified!",
+          description: "Welcome to TrustGuard Security.",
+        });
+        navigate("/");
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred during verification.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: userEmail,
+      });
+
+      if (error) {
+        toast({
+          title: "Resend Failed",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Code Sent!",
+          description: "A new verification code has been sent to your email.",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to resend verification code.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (showOtpVerification) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/10 rounded-full mb-4">
+              <Shield className="w-8 h-8 text-primary" />
+            </div>
+            <h1 className="text-3xl font-bold text-foreground">TrustGuard Security</h1>
+            <p className="text-muted-foreground">Advanced Security Dashboard</p>
+          </div>
+
+          <Card className="border-border/50 shadow-lg">
+            <CardHeader>
+              <div className="flex items-center gap-2 mb-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowOtpVerification(false)}
+                  className="p-1 h-8 w-8"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <CardTitle>Verify Your Email</CardTitle>
+              </div>
+              <CardDescription>
+                We've sent a 6-digit verification code to {userEmail}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleOtpVerification} className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="otp">Verification Code</Label>
+                  <div className="flex justify-center">
+                    <InputOTP 
+                      maxLength={6} 
+                      value={otpCode} 
+                      onChange={setOtpCode}
+                      disabled={loading}
+                    >
+                      <InputOTPGroup>
+                        <InputOTPSlot index={0} />
+                        <InputOTPSlot index={1} />
+                        <InputOTPSlot index={2} />
+                        <InputOTPSlot index={3} />
+                        <InputOTPSlot index={4} />
+                        <InputOTPSlot index={5} />
+                      </InputOTPGroup>
+                    </InputOTP>
+                  </div>
+                </div>
+                <Button type="submit" className="w-full" disabled={loading || otpCode.length !== 6}>
+                  {loading ? "Verifying..." : "Verify Email"}
+                </Button>
+                <div className="text-center">
+                  <Button
+                    type="button"
+                    variant="link"
+                    onClick={handleResendCode}
+                    disabled={loading}
+                    className="text-sm text-muted-foreground"
+                  >
+                    Didn't receive the code? Resend
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20 flex items-center justify-center p-4">
