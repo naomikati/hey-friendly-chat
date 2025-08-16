@@ -17,8 +17,10 @@ const Auth = () => {
   const [signInForm, setSignInForm] = useState({ email: "", password: "" });
   const [signUpForm, setSignUpForm] = useState({ email: "", password: "", fullName: "" });
   const [showOtpVerification, setShowOtpVerification] = useState(false);
+  const [showSignInOtp, setShowSignInOtp] = useState(false);
   const [otpCode, setOtpCode] = useState("");
   const [userEmail, setUserEmail] = useState("");
+  const [isSignUpFlow, setIsSignUpFlow] = useState(false);
 
   useEffect(() => {
     // Check if user is already authenticated
@@ -36,9 +38,9 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      // First, request OTP to be sent to email
+      const { error } = await supabase.auth.signInWithOtp({
         email: signInForm.email,
-        password: signInForm.password,
       });
 
       if (error) {
@@ -48,11 +50,13 @@ const Auth = () => {
           variant: "destructive",
         });
       } else {
+        setUserEmail(signInForm.email);
+        setIsSignUpFlow(false);
+        setShowSignInOtp(true);
         toast({
-          title: "Welcome back!",
-          description: "Successfully signed in to TrustGuard Security.",
+          title: "Verification Code Sent!",
+          description: "Please check your email for the 6-digit verification code.",
         });
-        navigate("/");
       }
     } catch (error) {
       toast({
@@ -88,6 +92,7 @@ const Auth = () => {
         });
       } else {
         setUserEmail(signUpForm.email);
+        setIsSignUpFlow(true);
         setShowOtpVerification(true);
         toast({
           title: "Verification Code Sent!",
@@ -110,24 +115,47 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.verifyOtp({
-        email: userEmail,
-        token: otpCode,
-        type: 'signup'
-      });
-
-      if (error) {
-        toast({
-          title: "Verification Failed",
-          description: error.message,
-          variant: "destructive",
+      if (isSignUpFlow) {
+        const { error } = await supabase.auth.verifyOtp({
+          email: userEmail,
+          token: otpCode,
+          type: 'signup'
         });
+        
+        if (error) {
+          toast({
+            title: "Verification Failed",
+            description: error.message,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Account Verified!",
+            description: "Welcome to TrustGuard Security.",
+          });
+          navigate("/");
+        }
       } else {
-        toast({
-          title: "Account Verified!",
-          description: "Welcome to TrustGuard Security.",
+        // For sign-in OTP, we use the magiclink verification
+        const { error } = await supabase.auth.verifyOtp({
+          email: userEmail,
+          token: otpCode,
+          type: 'email'
         });
-        navigate("/");
+        
+        if (error) {
+          toast({
+            title: "Verification Failed",
+            description: error.message,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Welcome back!",
+            description: "Successfully signed in to TrustGuard Security.",
+          });
+          navigate("/");
+        }
       }
     } catch (error) {
       toast({
@@ -143,22 +171,42 @@ const Auth = () => {
   const handleResendCode = async () => {
     setLoading(true);
     try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: userEmail,
-      });
-
-      if (error) {
-        toast({
-          title: "Resend Failed",
-          description: error.message,
-          variant: "destructive",
+      if (isSignUpFlow) {
+        const { error } = await supabase.auth.resend({
+          type: 'signup',
+          email: userEmail,
         });
+        
+        if (error) {
+          toast({
+            title: "Resend Failed",
+            description: error.message,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Code Sent!",
+            description: "A new verification code has been sent to your email.",
+          });
+        }
       } else {
-        toast({
-          title: "Code Sent!",
-          description: "A new verification code has been sent to your email.",
+        // For sign-in, resend the magic link OTP
+        const { error } = await supabase.auth.signInWithOtp({
+          email: userEmail,
         });
+        
+        if (error) {
+          toast({
+            title: "Resend Failed",
+            description: error.message,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Code Sent!",
+            description: "A new verification code has been sent to your email.",
+          });
+        }
       }
     } catch (error) {
       toast({
@@ -171,7 +219,7 @@ const Auth = () => {
     }
   };
 
-  if (showOtpVerification) {
+  if (showOtpVerification || showSignInOtp) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
@@ -189,15 +237,22 @@ const Auth = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setShowOtpVerification(false)}
+                  onClick={() => {
+                    setShowOtpVerification(false);
+                    setShowSignInOtp(false);
+                    setOtpCode("");
+                  }}
                   className="p-1 h-8 w-8"
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
-                <CardTitle>Verify Your Email</CardTitle>
+                <CardTitle>{isSignUpFlow ? "Verify Your Email" : "Multi-Factor Authentication"}</CardTitle>
               </div>
               <CardDescription>
-                We've sent a 6-digit verification code to {userEmail}
+                {isSignUpFlow 
+                  ? `We've sent a 6-digit verification code to ${userEmail}`
+                  : `For security, we've sent a 6-digit code to ${userEmail}`
+                }
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -223,7 +278,7 @@ const Auth = () => {
                   </div>
                 </div>
                 <Button type="submit" className="w-full" disabled={loading || otpCode.length !== 6}>
-                  {loading ? "Verifying..." : "Verify Email"}
+                  {loading ? "Verifying..." : (isSignUpFlow ? "Verify Email" : "Complete Sign In")}
                 </Button>
                 <div className="text-center">
                   <Button
