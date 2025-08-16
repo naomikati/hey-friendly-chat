@@ -10,6 +10,9 @@ import { Shield, Lock, User, Mail, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+const SUPABASE_URL = "https://vthjgdhcmmusupfdwglq.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0aGpnZGhjbW11c3VwZmR3Z2xxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUxNTY5MjMsImV4cCI6MjA3MDczMjkyM30.awCMDdcH9d-2D4Q7LKGGC2TLDIqT530yXt5GNIcbCbM";
+
 const Auth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -38,15 +41,25 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      // First, request OTP to be sent to email
-      const { error } = await supabase.auth.signInWithOtp({
-        email: signInForm.email,
+      // Send OTP code to email
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/send-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          email: signInForm.email,
+          purpose: 'signin'
+        }),
       });
 
-      if (error) {
+      const result = await response.json();
+
+      if (!response.ok) {
         toast({
           title: "Sign In Failed",
-          description: error.message,
+          description: result.error || "Failed to send verification code",
           variant: "destructive",
         });
       } else {
@@ -55,7 +68,7 @@ const Auth = () => {
         setShowSignInOtp(true);
         toast({
           title: "Verification Code Sent!",
-          description: "Please check your email for the 6-digit verification code.",
+          description: `A 6-digit code has been sent to ${signInForm.email}`,
         });
       }
     } catch (error) {
@@ -74,20 +87,25 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signUp({
-        email: signUpForm.email,
-        password: signUpForm.password,
-        options: {
-          data: {
-            full_name: signUpForm.fullName,
-          },
+      // Send OTP code to email for signup
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/send-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
         },
+        body: JSON.stringify({
+          email: signUpForm.email,
+          purpose: 'signup'
+        }),
       });
 
-      if (error) {
+      const result = await response.json();
+
+      if (!response.ok) {
         toast({
           title: "Sign Up Failed",
-          description: error.message,
+          description: result.error || "Failed to send verification code",
           variant: "destructive",
         });
       } else {
@@ -96,7 +114,7 @@ const Auth = () => {
         setShowOtpVerification(true);
         toast({
           title: "Verification Code Sent!",
-          description: "Please check your email for the 6-digit verification code.",
+          description: `A 6-digit code has been sent to ${signUpForm.email}`,
         });
       }
     } catch (error) {
@@ -115,38 +133,68 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      if (isSignUpFlow) {
-        const { error } = await supabase.auth.verifyOtp({
+      // Verify OTP code
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/verify-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
           email: userEmail,
-          token: otpCode,
-          type: 'signup'
+          code: otpCode,
+          purpose: isSignUpFlow ? 'signup' : 'signin'
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        toast({
+          title: "Verification Failed",
+          description: result.error || "Invalid verification code",
+          variant: "destructive",
         });
-        
-        if (error) {
+        return;
+      }
+
+      // If OTP is verified, proceed with authentication
+      if (isSignUpFlow) {
+        // Create the user account
+        const { error: signUpError } = await supabase.auth.signUp({
+          email: userEmail,
+          password: signUpForm.password,
+          options: {
+            data: {
+              full_name: signUpForm.fullName,
+            },
+          },
+        });
+
+        if (signUpError) {
           toast({
-            title: "Verification Failed",
-            description: error.message,
+            title: "Account Creation Failed",
+            description: signUpError.message,
             variant: "destructive",
           });
         } else {
           toast({
-            title: "Account Verified!",
+            title: "Account Created!",
             description: "Welcome to TrustGuard Security.",
           });
           navigate("/");
         }
       } else {
-        // For sign-in OTP, we use the magiclink verification
-        const { error } = await supabase.auth.verifyOtp({
+        // Sign in the user (we'll create a session using admin API)
+        const { error: signInError } = await supabase.auth.signInWithPassword({
           email: userEmail,
-          token: otpCode,
-          type: 'email'
+          password: signInForm.password,
         });
-        
-        if (error) {
+
+        if (signInError) {
           toast({
-            title: "Verification Failed",
-            description: error.message,
+            title: "Sign In Failed",
+            description: "Please verify your password is correct.",
             variant: "destructive",
           });
         } else {
@@ -171,42 +219,31 @@ const Auth = () => {
   const handleResendCode = async () => {
     setLoading(true);
     try {
-      if (isSignUpFlow) {
-        const { error } = await supabase.auth.resend({
-          type: 'signup',
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/send-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
           email: userEmail,
+          purpose: isSignUpFlow ? 'signup' : 'signin'
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        toast({
+          title: "Resend Failed",
+          description: result.error || "Failed to resend verification code",
+          variant: "destructive",
         });
-        
-        if (error) {
-          toast({
-            title: "Resend Failed",
-            description: error.message,
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "Code Sent!",
-            description: "A new verification code has been sent to your email.",
-          });
-        }
       } else {
-        // For sign-in, resend the magic link OTP
-        const { error } = await supabase.auth.signInWithOtp({
-          email: userEmail,
+        toast({
+          title: "Code Sent!",
+          description: "A new verification code has been sent to your email.",
         });
-        
-        if (error) {
-          toast({
-            title: "Resend Failed",
-            description: error.message,
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "Code Sent!",
-            description: "A new verification code has been sent to your email.",
-          });
-        }
       }
     } catch (error) {
       toast({
