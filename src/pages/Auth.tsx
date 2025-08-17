@@ -20,7 +20,7 @@ const Auth = () => {
   const [signInForm, setSignInForm] = useState({ email: "", password: "" });
   const [signUpForm, setSignUpForm] = useState({ email: "", password: "", fullName: "" });
   const [showOtpVerification, setShowOtpVerification] = useState(false);
-  const [showSignInOtp, setShowSignInOtp] = useState(false);
+  
   const [otpCode, setOtpCode] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [isSignUpFlow, setIsSignUpFlow] = useState(false);
@@ -41,35 +41,23 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      // Send OTP code to email
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/send-otp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({
-          email: signInForm.email,
-          purpose: 'signin'
-        }),
+      const { error } = await supabase.auth.signInWithPassword({
+        email: signInForm.email,
+        password: signInForm.password,
       });
 
-      const result = await response.json();
-
-      if (!response.ok) {
+      if (error) {
         toast({
           title: "Sign In Failed",
-          description: result.error || "Failed to send verification code",
+          description: error.message,
           variant: "destructive",
         });
       } else {
-        setUserEmail(signInForm.email);
-        setIsSignUpFlow(false);
-        setShowSignInOtp(true);
         toast({
-          title: "Verification Code Sent!",
-          description: `A 6-digit code has been sent to ${signInForm.email}`,
+          title: "Welcome back!",
+          description: "Successfully signed in to TrustGuard Security.",
         });
+        navigate("/");
       }
     } catch (error) {
       toast({
@@ -143,7 +131,7 @@ const Auth = () => {
         body: JSON.stringify({
           email: userEmail,
           code: otpCode,
-          purpose: isSignUpFlow ? 'signup' : 'signin'
+          purpose: 'signup'
         }),
       });
 
@@ -158,52 +146,29 @@ const Auth = () => {
         return;
       }
 
-      // If OTP is verified, proceed with authentication
-      if (isSignUpFlow) {
-        // Create the user account
-        const { error: signUpError } = await supabase.auth.signUp({
-          email: userEmail,
-          password: signUpForm.password,
-          options: {
-            data: {
-              full_name: signUpForm.fullName,
-            },
+      // Create the user account after OTP verification
+      const { error: signUpError } = await supabase.auth.signUp({
+        email: userEmail,
+        password: signUpForm.password,
+        options: {
+          data: {
+            full_name: signUpForm.fullName,
           },
-        });
+        },
+      });
 
-        if (signUpError) {
-          toast({
-            title: "Account Creation Failed",
-            description: signUpError.message,
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "Account Created!",
-            description: "Welcome to TrustGuard Security.",
-          });
-          navigate("/");
-        }
+      if (signUpError) {
+        toast({
+          title: "Account Creation Failed",
+          description: signUpError.message,
+          variant: "destructive",
+        });
       } else {
-        // Sign in the user (we'll create a session using admin API)
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: userEmail,
-          password: signInForm.password,
+        toast({
+          title: "Account Created!",
+          description: "Welcome to TrustGuard Security.",
         });
-
-        if (signInError) {
-          toast({
-            title: "Sign In Failed",
-            description: "Please verify your password is correct.",
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "Welcome back!",
-            description: "Successfully signed in to TrustGuard Security.",
-          });
-          navigate("/");
-        }
+        navigate("/");
       }
     } catch (error) {
       toast({
@@ -227,7 +192,7 @@ const Auth = () => {
         },
         body: JSON.stringify({
           email: userEmail,
-          purpose: isSignUpFlow ? 'signup' : 'signin'
+          purpose: 'signup'
         }),
       });
 
@@ -256,7 +221,7 @@ const Auth = () => {
     }
   };
 
-  if (showOtpVerification || showSignInOtp) {
+  if (showOtpVerification) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
@@ -276,20 +241,16 @@ const Auth = () => {
                   size="sm"
                   onClick={() => {
                     setShowOtpVerification(false);
-                    setShowSignInOtp(false);
                     setOtpCode("");
                   }}
                   className="p-1 h-8 w-8"
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
-                <CardTitle>{isSignUpFlow ? "Verify Your Email" : "Multi-Factor Authentication"}</CardTitle>
+                <CardTitle>Verify Your Email</CardTitle>
               </div>
               <CardDescription>
-                {isSignUpFlow 
-                  ? `We've sent a 6-digit verification code to ${userEmail}`
-                  : `For security, we've sent a 6-digit code to ${userEmail}`
-                }
+                We've sent a 6-digit verification code to ${userEmail}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -315,7 +276,7 @@ const Auth = () => {
                   </div>
                 </div>
                 <Button type="submit" className="w-full" disabled={loading || otpCode.length !== 6}>
-                  {loading ? "Verifying..." : (isSignUpFlow ? "Verify Email" : "Complete Sign In")}
+                  {loading ? "Verifying..." : "Verify Email"}
                 </Button>
                 <div className="text-center">
                   <Button
